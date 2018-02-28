@@ -31,7 +31,7 @@ Fellow nerds, meet "certainly" - all contributions are appreciated!
 
 
 ## Current state
-Proof of concept - *do not* use this unless you know what you are doing!
+Proof of concept - *do not* use this unless you know what you are doing! Please have a look at the open issues first.  
 Currently, the TLS settings of the HTTPS client for proxied requests are not configurable.  
 
 
@@ -44,7 +44,6 @@ Currently, the TLS settings of the HTTPS client for proxied requests are not con
 
 ## Nice to have
 - White listing of allowed client names, based on CN or something similar - perhaps with regex support
-- Insertion of security headers in responses, such as HSTS
 - Insertion of "Secure" attributes for cookies
 
 

@@ -8,10 +8,65 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"io/ioutil"
+	"strings"
 	"log"
 )
 
+// Based on httputil.singleJoiningSlash from standard library
+func singleJoiningSlash(a, b string) string {
+	aSlash := strings.HasSuffix(a, "/")
+	bSlash := strings.HasPrefix(b, "/")
+
+	switch {
+	case aSlash && bSlash:
+		return a + b[1:]
+
+	case !aSlash && !bSlash:
+		return a + "/" + b
+	}
+
+	return a + b
+}
+
+// Based on httputil.NewSingleHostReverseProxy from standard library
+func NewReverseProxy(targetURL *url.URL, addHSTS bool) *httputil.ReverseProxy {
+
+	// Modification of proxied requests sent to target URL
+	reqModifier := func(req *http.Request) {
+		req.URL.Scheme = targetURL.Scheme
+		req.URL.Host = targetURL.Host
+		req.URL.Path = singleJoiningSlash(targetURL.Path, req.URL.Path)
+
+		// Handling of query parameters, if specified in target URL
+		if targetURL.RawQuery == "" || req.URL.RawQuery == "" {
+			req.URL.RawQuery = targetURL.RawQuery + req.URL.RawQuery
+
+		} else {
+			req.URL.RawQuery = targetURL.RawQuery + "&" + req.URL.RawQuery
+		}
+
+		// If no user agent is specified, don't use httplib's default
+		if _, reqUA := req.Header["User-Agent"]; !reqUA {
+			req.Header.Set("User-Agent", "")
+		}
+	}
+
+	// Modification of proxied responses returned from target URL
+	resModifier := func(res *http.Response) (err error) {
+		if addHSTS == true {
+			res.Header.Set("Strict-Transport-Security", "max-age=31536000")
+		}
+
+		return err
+	}
+
+	return &httputil.ReverseProxy{Director: reqModifier, ModifyResponse: resModifier}
+
+}
+
+// Setup and parsing of command line arguments
 var serverAddress, serverCert, serverKey, clientCAFile, targetURL string
+var addHSTS bool
 
 func init() {
 	flag.StringVar(&serverAddress, "server-address", ":9090", "Listening address for proxy server")
@@ -19,6 +74,7 @@ func init() {
 	flag.StringVar(&serverKey, "server-key", "", "Path to server certificate private key in PEM format")
 	flag.StringVar(&clientCAFile, "client-ca", "", "Path to client CA in PEM format")
 	flag.StringVar(&targetURL, "target-url", "", "Target URL for proxied requests")
+	flag.BoolVar(&addHSTS, "add-hsts", false, "Add Strict Transport Security (HSTS) header to responses")
 	flag.Parse()
 
 }
@@ -49,7 +105,7 @@ func main() {
 		},
 	}
 
-	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+	proxy := NewReverseProxy(targetURL, addHSTS)
 
 	proxyServer := http.Server{
 		Addr: serverAddress,

@@ -1,5 +1,5 @@
 # certainly - A tiny HTTPS reverse proxy for mutual TLS authentication
-#### Version: 0.2 / "We Shall Overcome"
+#### Version: 0.3 / "Cryptic Cookie"
 
 ## Introduction
 > "Build zero trust networks they said. It will be fun they said".
@@ -44,7 +44,7 @@ Currently, the TLS settings of the HTTPS client for proxied requests are not con
 
 ## Nice to have
 - White listing of allowed client names, based on CN or something similar - perhaps with regex support
-- Insertion of "Secure" attributes for cookies
+- Proper logging of forwarded requests/failed authentication attempts
 
 
 ## Example usage

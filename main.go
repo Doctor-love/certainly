@@ -37,6 +37,9 @@ func NewReverseProxy(targetURL *url.URL, addHSTS bool) *httputil.ReverseProxy {
 		req.URL.Host = targetURL.Host
 		req.URL.Path = singleJoiningSlash(targetURL.Path, req.URL.Path)
 
+		// Work-around for issue with port being included in "Host" header
+		req.Host = targetURL.Hostname()
+
 		// Handling of query parameters, if specified in target URL
 		if targetURL.RawQuery == "" || req.URL.RawQuery == "" {
 			req.URL.RawQuery = targetURL.RawQuery + req.URL.RawQuery
@@ -49,12 +52,32 @@ func NewReverseProxy(targetURL *url.URL, addHSTS bool) *httputil.ReverseProxy {
 		if _, reqUA := req.Header["User-Agent"]; !reqUA {
 			req.Header.Set("User-Agent", "")
 		}
+
 	}
 
 	// Modification of proxied responses returned from target URL
 	resModifier := func(res *http.Response) (err error) {
 		if addHSTS == true {
 			res.Header.Set("Strict-Transport-Security", "max-age=31536000")
+		}
+
+		// Check if any cookies are being set and add "Secure" attribute if needed
+		if len(res.Cookies()) > 0 {
+			var modifiedCookies []*http.Cookie
+
+			for _, cookie := range res.Cookies() {
+				cookie.Secure = true
+				modifiedCookies = append(modifiedCookies, cookie)
+
+			}
+
+			res.Header.Del("Set-Cookie")
+
+			for _, cookie := range modifiedCookies {
+				res.Header.Add("Set-Cookie", cookie.String())
+
+			}
+
 		}
 
 		return err

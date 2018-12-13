@@ -1,0 +1,38 @@
+# Systemd service unit file for certainly compiled with:
+# CGO_ENABLED=0 GOOS=linux go build -a -tags netgo -ldflags '-w -extldflags "-static"'
+#
+[Unit]
+Description=Reverse HTTP proxy with mutual TLS authentication for %i
+After=network.target
+ 
+[Service]
+# File containing environment variable definition, used as configuration for the instance 
+EnvironmentFile=/etc/certainly/%i.conf
+
+Type=simple
+User=certainly
+Group=certainly
+ExecStart=/usr/bin/certainly -server-address ${CERTAINLY_SERVER_ADDRESS} -target-url ${CERTAINLY_TARGET_URL} -server-cert ${CERTAINLY_SERVER_CERT} -server-key ${CERTAINLY_SERVER_KEY} -client-ca ${CERTAINLY_CLIENT_CA} -cn-whitelist ${CERTAINLY_CN_WHITELIST} -add-hsts
+Restart=on-failure
+ 
+RemoveIPC=true
+PrivateDevices=true
+ProtectSystem=strict
+NoNewPrivileges=true
+LockPersonality=true
+RestrictNamespaces=true
+ProtectControlGroups=true
+MemoryDenyWriteExecute=true
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+# Should preferably use whitelisting instead, but the application needs more testing first
+SystemCallFilter=~@chown @clock @cpu-emulation @debug @file-system @ipc @keyring @module @mount @obsolete @privileged @raw-io @reboot @resources @setuid @swap @sync @system-service
+
+# Since InaccessiblePaths cant be nested with ReadOnlyPaths, we need to attempt some blacklisting
+InaccessiblePaths=/bin /boot /home /lib /media /mnt /opt /root /run/user /sbin /srv /tmp /var
+TemporaryFileSystem=/etc:ro
+BindReadOnlyPaths=/etc/certainly /etc/ssl/certs /etc/localtime /etc/hosts /etc/resolv.conf
+ 
+[Install]
+WantedBy=multi-user.target

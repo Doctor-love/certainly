@@ -9,8 +9,82 @@ import (
 	"net/url"
 	"io/ioutil"
 	"strings"
+	"errors"
+	"bufio"
 	"log"
+	"os"
 )
+
+// Setup and parsing of command line arguments/globals
+var serverAddress, serverCert, serverKey, clientCAFile, targetURL, trustedCNsFile string
+var addHSTS bool
+var trustedCNs []string
+
+// Loads CN whitelist from file
+func loadCNWhitelist(trustedCNsFile string) (trustedCNs []string, err error) {
+	if trustedCNsFile == "" {
+		log.Print("WARN: No CN whitelist specified")
+		return trustedCNs, err
+	}
+
+	log.Print("INFO: Loading CN whitelist from file: ", trustedCNsFile)
+
+	trustedCNsData, err := os.Open(trustedCNsFile)
+	if err != nil {
+		return trustedCNs, err
+	}
+
+	trustedCNsScanner := bufio.NewScanner(trustedCNsData)
+
+	for trustedCNsScanner.Scan() {
+		entry := trustedCNsScanner.Text()
+
+		// Ignore empty lines, seems like the resonsable thing to do
+		if entry == "" {
+			continue
+		}
+
+		trustedCNs = append(trustedCNs, entry)
+	}
+
+	if err := trustedCNsScanner.Err(); err != nil {
+		return trustedCNs, err
+	}
+
+	trustedCNsData.Close()
+
+	return trustedCNs, err
+}
+
+// Check if CN is included in white-list
+func includedInWhitelist(cn string) (included bool) {
+	log.Print("INFO: Checking if CN is included in whitelist: ", cn)
+
+	for _, entry := range trustedCNs {
+		if cn == entry {
+			log.Print("INFO: CN is included in whitelist: ", cn)
+			return true
+		}
+	}
+
+	return false
+}
+
+// Perform additional validation of the verfified certificate chains
+func validateCert(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) (err error) {
+	if len(trustedCNs) == 0 {
+		return err
+	}
+
+	for _, verifiedChain := range verifiedChains {
+		// If CN is whitelisted, we proceede with the request
+		if includedInWhitelist(verifiedChain[0].Subject.CommonName) {
+			return err
+		}
+	}
+
+	return errors.New("WARN: Could not find a matching CN in whitelist")
+}
 
 // Based on httputil.singleJoiningSlash from standard library
 func singleJoiningSlash(a, b string) string {
@@ -29,7 +103,7 @@ func singleJoiningSlash(a, b string) string {
 }
 
 // Based on httputil.NewSingleHostReverseProxy from standard library
-func NewReverseProxy(targetURL *url.URL, addHSTS bool) *httputil.ReverseProxy {
+func newReverseProxy(targetURL *url.URL, addHSTS bool) *httputil.ReverseProxy {
 
 	// Modification of proxied requests sent to target URL
 	reqModifier := func(req *http.Request) {
@@ -68,28 +142,20 @@ func NewReverseProxy(targetURL *url.URL, addHSTS bool) *httputil.ReverseProxy {
 			for _, cookie := range res.Cookies() {
 				cookie.Secure = true
 				modifiedCookies = append(modifiedCookies, cookie)
-
 			}
 
 			res.Header.Del("Set-Cookie")
 
 			for _, cookie := range modifiedCookies {
 				res.Header.Add("Set-Cookie", cookie.String())
-
 			}
-
 		}
 
 		return err
 	}
 
 	return &httputil.ReverseProxy{Director: reqModifier, ModifyResponse: resModifier}
-
 }
-
-// Setup and parsing of command line arguments
-var serverAddress, serverCert, serverKey, clientCAFile, targetURL string
-var addHSTS bool
 
 func init() {
 	flag.StringVar(&serverAddress, "server-address", ":9090", "Listening address for proxy server")
@@ -98,11 +164,12 @@ func init() {
 	flag.StringVar(&clientCAFile, "client-ca", "", "Path to client CA in PEM format")
 	flag.StringVar(&targetURL, "target-url", "", "Target URL for proxied requests")
 	flag.BoolVar(&addHSTS, "add-hsts", false, "Add Strict Transport Security (HSTS) header to responses")
+	flag.StringVar(&trustedCNsFile, "cn-whitelist", "", "Path to file containg trusted CNs")
 	flag.Parse()
-
 }
 
 func main() {
+	// Read trusted CA(s) from file
 	clientCAData, err := ioutil.ReadFile(clientCAFile)
 	if err != nil {
 		log.Fatal(err)
@@ -116,9 +183,15 @@ func main() {
 		log.Fatal(err)
 	}
 
+	trustedCNs, err = loadCNWhitelist(trustedCNsFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	serverTLSConfig := &tls.Config{
 		ClientCAs: clientCA,
 		ClientAuth: tls.RequireAndVerifyClientCert,
+		VerifyPeerCertificate: validateCert,
 		MinVersion: tls.VersionTLS12,
 		PreferServerCipherSuites: true,
 		CipherSuites: []uint16{
@@ -128,7 +201,7 @@ func main() {
 		},
 	}
 
-	proxy := NewReverseProxy(targetURL, addHSTS)
+	proxy := newReverseProxy(targetURL, addHSTS)
 
 	proxyServer := http.Server{
 		Addr: serverAddress,

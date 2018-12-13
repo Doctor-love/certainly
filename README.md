@@ -1,5 +1,5 @@
 # certainly - A tiny HTTPS reverse proxy for mutual TLS authentication
-#### Version: 0.3 / "Cryptic Cookie"
+#### Version: 0.4 / "You shall (not) pass"
 
 ## Introduction
 > "Build zero trust networks they said. It will be fun they said".
@@ -30,11 +30,6 @@ In order to do something about this, I've started to hack on a small Go applicat
 Fellow nerds, meet "certainly" - all contributions are appreciated!  
 
 
-## Current state
-Proof of concept - *do not* use this unless you know what you are doing! Please have a look at the open issues first.  
-Currently, the TLS settings of the HTTPS client for proxied requests are not configurable.  
-
-
 ## Project goals
 - Easy to use: A few command line flags or environment variables should be all that is required to get it running
 - Easy to deploy: Static binaries without no runtime dependencies
@@ -42,12 +37,24 @@ Currently, the TLS settings of the HTTPS client for proxied requests are not con
 - Minimalistic: Small and auditable code base using only the Go standard library
 
 
+## Current state
+Proof of concept - *do not* use this unless you know what you are doing! Please have a look at the open issues first.  
+Currently, the TLS settings of the HTTPS client for proxied requests are not configurable.  
+
+
+## Current features
+- Automatically set "Secure" attribute for cookies to prevent leakage
+- Optional inclusion of a HTTP Strict Transport Security policy in responses
+- Optional whitelisting of specific CNs at the TLS level
+
+
 ## Nice to have
-- White listing of allowed client names, based on CN or something similar - perhaps with regex support
-- Proper logging of forwarded requests/failed authentication attempts
+- Inclusion of client CN in HTTP header
+- Automatic reloading of CN whitelist during updates
+- Logging in GELF or another sane format
 
 
 ## Example usage
 ```
-$ ./certainly -target-url 'http://127.0.0.1:1980' -server-address ':443' -server-cert 'cert.pem' -server-key 'key.pem' -client-ca 'ca.pem' -add-hsts
+$ ./certainly -target-url 'http://127.0.0.1:1980' -server-address ':443' -server-cert 'cert.pem' -server-key 'key.pem' -client-ca 'ca.pem' -add-hsts -cn-whitelist 'admins.txt'
 ```

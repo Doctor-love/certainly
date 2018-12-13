@@ -1,5 +1,5 @@
 # certainly - A tiny HTTPS reverse proxy for mutual TLS authentication
-#### Version: 0.4 / "You shall (not) pass"
+#### Version: 0.5 / "Environmentally Friendly"
 
 ## Introduction
 > "Build zero trust networks they said. It will be fun they said".
@@ -56,5 +56,10 @@ Currently, the TLS settings of the HTTPS client for proxied requests are not con
 
 ## Example usage
 ```
-$ ./certainly -target-url 'http://127.0.0.1:1980' -server-address ':443' -server-cert 'cert.pem' -server-key 'key.pem' -client-ca 'ca.pem' -add-hsts -cn-whitelist 'admins.txt'
+$ certainly -target-url 'http://127.0.0.1:1980' -server-address ':443' -server-cert 'cert.pem' -server-key 'key.pem' -client-ca 'ca.pem' -add-hsts -cn-whitelist 'admins.txt'
+```
+
+```
+$ source configuration.env
+$ certainly -env
 ```

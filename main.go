@@ -17,7 +17,7 @@ import (
 
 // Setup and parsing of command line arguments/globals
 var serverAddress, serverCert, serverKey, clientCAFile, targetURL, trustedCNsFile string
-var addHSTS bool
+var addHSTS, confFromEnv bool
 var trustedCNs []string
 
 // Loads CN whitelist from file
@@ -164,8 +164,24 @@ func init() {
 	flag.StringVar(&clientCAFile, "client-ca", "", "Path to client CA in PEM format")
 	flag.StringVar(&targetURL, "target-url", "", "Target URL for proxied requests")
 	flag.BoolVar(&addHSTS, "add-hsts", false, "Add Strict Transport Security (HSTS) header to responses")
-	flag.StringVar(&trustedCNsFile, "cn-whitelist", "", "Path to file containg trusted CNs")
+	flag.StringVar(&trustedCNsFile, "cn-whitelist", "", "Path to new line separated file containg allowed CNs")
+	flag.BoolVar(&confFromEnv, "env", false, "Read configuration from enviroment variables")
 	flag.Parse()
+
+	if confFromEnv == true {
+		log.Print("INFO: Reading configuration from environment variables")
+
+		serverAddress = os.Getenv("CERTAINLY_SERVER_ADDRESS")
+		serverCert = os.Getenv("CERTAINLY_SERVER_CERT")
+		serverKey = os.Getenv("CERTAINLY_SERVER_KEY")
+		clientCAFile = os.Getenv("CERTAINLY_CLIENT_CA")
+		targetURL = os.Getenv("CERTAINLY_TARGET_URL")
+		trustedCNsFile = os.Getenv("CERTAINLY_CN_WHITELIST")
+
+		if os.Getenv("CERTAINLY_ADD_HSTS") == "true" {
+			addHSTS = true
+		}
+	}
 }
 
 func main() {

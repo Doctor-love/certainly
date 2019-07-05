@@ -8,7 +8,7 @@ The perimeter is dead. Well, not dead - but definitely on life support.
 The "inside" should no longer be considered a safe space where all hosts and users can be completly trusted.  
 If we really need to argue about this, I recommend first reading about [Google's perspective on it](https://cloud.google.com/beyondcorp) and the book ["Zero Trust Networks"](http://shop.oreilly.com/product/0636920052265.do)
 
-There are a few practical ways of build zero trust networks.  
+There are a few practical ways of building zero trust networks.  
 
 One method, while not perfect and a bit cumbersome, is to use mutual TLS authentication for services (sometimes clumsily called "client certificates").  
 It is nice for a couple of reasons:

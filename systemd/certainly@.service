@@ -12,7 +12,7 @@ EnvironmentFile=/etc/certainly/%i.conf
 Type=simple
 User=certainly
 Group=certainly
-ExecStart=/usr/bin/certainly -server-address ${CERTAINLY_SERVER_ADDRESS} -target-url ${CERTAINLY_TARGET_URL} -server-cert ${CERTAINLY_SERVER_CERT} -server-key ${CERTAINLY_SERVER_KEY} -client-ca ${CERTAINLY_CLIENT_CA} -cn-whitelist ${CERTAINLY_CN_WHITELIST} -add-hsts
+ExecStart=/usr/bin/certainly -env
 Restart=on-failure
  
 RemoveIPC=true

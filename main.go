@@ -3,7 +3,9 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"flag"
+	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -16,9 +18,21 @@ import (
 )
 
 // Setup and parsing of command line arguments/globals
-var serverAddress, serverCert, serverKey, clientCAFile, targetURL, trustedCNsFile string
+var serverAddress, serverCert, serverKey, clientCAFile, clientCRLFile, targetURL, trustedCNsFile string
 var addHSTS, confFromEnv bool
 var trustedCNs []string
+var crl *pkix.CertificateList
+
+// Check if certificate is revoked using provided CRL - inspired by cfssl/revoke/revoke.go
+func isRevoked(cert *x509.Certificate) (revoked bool) {
+	for _, revokedCert := range crl.TBSCertList.RevokedCertificates {
+		if cert.SerialNumber.Cmp(revokedCert.SerialNumber) == 0 {
+			return true
+		}
+	}
+
+	return false
+}
 
 // Loads CN whitelist from file
 func loadCNWhitelist(trustedCNsFile string) (trustedCNs []string, err error) {
@@ -77,6 +91,15 @@ func validateCert(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) (err 
 	}
 
 	for _, verifiedChain := range verifiedChains {
+		// Check if any certificate in the verified chain has been revoked
+		for _, verifiedCert := range verifiedChain {
+			if isRevoked(verifiedCert) {
+				return errors.New(fmt.Sprint(
+					"WARN: Peer provided revoked certificate: ",
+					verifiedCert.SerialNumber))
+			}
+		}
+
 		// If CN is whitelisted, we proceede with the request
 		if includedInWhitelist(verifiedChain[0].Subject.CommonName) {
 			return err
@@ -162,6 +185,7 @@ func init() {
 	flag.StringVar(&serverCert, "server-cert", "", "Path to server certificate bundle in PEM format")
 	flag.StringVar(&serverKey, "server-key", "", "Path to server certificate private key in PEM format")
 	flag.StringVar(&clientCAFile, "client-ca", "", "Path to client CA in PEM format")
+	flag.StringVar(&clientCRLFile, "client-crl", "", "Path to client CRL file in PEM format")
 	flag.StringVar(&targetURL, "target-url", "", "Target URL for proxied requests")
 	flag.BoolVar(&addHSTS, "add-hsts", false, "Add Strict Transport Security (HSTS) header to responses")
 	flag.StringVar(&trustedCNsFile, "cn-whitelist", "", "Path to new line separated file containg allowed CNs")
@@ -175,6 +199,7 @@ func init() {
 		serverCert = os.Getenv("CERTAINLY_SERVER_CERT")
 		serverKey = os.Getenv("CERTAINLY_SERVER_KEY")
 		clientCAFile = os.Getenv("CERTAINLY_CLIENT_CA")
+		clientCRLFile = os.Getenv("CERTAINLY_CLIENT_CRL")
 		targetURL = os.Getenv("CERTAINLY_TARGET_URL")
 		trustedCNsFile = os.Getenv("CERTAINLY_CN_WHITELIST")
 
@@ -185,23 +210,34 @@ func init() {
 }
 
 func main() {
-	// Read trusted CA(s) from file
 	clientCAData, err := ioutil.ReadFile(clientCAFile)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("ERROR: Failed to read CA data from file: ", err)
 	}
 
 	clientCA := x509.NewCertPool()
 	clientCA.AppendCertsFromPEM(clientCAData)
 
+	if clientCRLFile != "" {
+		clientCRLData, err := ioutil.ReadFile(clientCRLFile)
+		if err != nil {
+			log.Fatal("ERROR: Failed to read CRL data from file: ", err)
+		}
+
+		crl, err = x509.ParseCRL(clientCRLData)
+		if err != nil {
+			log.Fatal("ERROR: Failed to parse CRL data: ", err)
+		}
+	}
+
 	targetURL, err := url.Parse(targetURL)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("ERROR: Failed to parse target URL: ", err)
 	}
 
 	trustedCNs, err = loadCNWhitelist(trustedCNsFile)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("ERROR: Failed to load CN whitelist: ", err)
 	}
 
 	serverTLSConfig := &tls.Config{

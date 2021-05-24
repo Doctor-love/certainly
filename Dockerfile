@@ -5,8 +5,9 @@ WORKDIR /go/src
 COPY main.go .
 
 ## Ensures that built binary is static
-RUN CGO_ENABLED=1 GOOS=linux go build -a -tags netgo \
-	-ldflags '-w -extldflags "-static"' -o certainly
+RUN GO111MODULE=auto CGO_ENABLED=1 GOOS=linux go build \
+	-a -tags netgo -ldflags '-w -extldflags "-static"' \
+	-o certainly
 
 
 # CA trust root downloader container (for upstream requests)
